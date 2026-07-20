@@ -377,6 +377,7 @@ elif page == "Model Evaluation":
     if "eval_report" in st.session_state:
         report = st.session_state.eval_report
         summary = report["summary"]
+        results_df = report["results"]
 
         # Display summary metrics
         st.subheader("Summary")
