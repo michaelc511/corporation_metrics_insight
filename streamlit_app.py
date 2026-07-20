@@ -22,10 +22,13 @@ spec.loader.exec_module(capstone_module)
 test_agent = capstone_module.test_agent
 df = capstone_module.df
 
+# Import evaluation module
+from evaluation import run_evaluation, format_evaluation_report, TEST_QUERIES
+
 # ============================================================================
 # PAGE CONFIG
 # ============================================================================
-st.set_page_config(page_title="InsightForge", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Corp Metrics Insights", layout="wide", initial_sidebar_state="expanded")
 
 # ============================================================================
 # 7.3 STREAMLIT UI: Initialize Session State
@@ -38,7 +41,7 @@ if "thread_id" not in st.session_state:
 # ============================================================================
 # 7.3 STREAMLIT UI: Header
 # ============================================================================
-st.title("🔍 InsightForge - AI-Powered Business Intelligence Assistant")
+st.title("🔍 Corp Metrics Insights - AI-Powered Business Intelligence Assistant")
 st.markdown("**Analyze your data with AI-driven insights and interactive visualizations**")
 
 # ============================================================================
@@ -46,7 +49,7 @@ st.markdown("**Analyze your data with AI-driven insights and interactive visuali
 # ============================================================================
 with st.sidebar:
     st.header("📊 Navigation")
-    page = st.radio("Select Page:", ["Dashboard", "Chat with AI", "About"])
+    page = st.radio("Select Page:", ["Dashboard", "Chat with AI", "Model Evaluation", "About"])
 
 # ============================================================================
 # PAGE 1: DASHBOARD WITH VISUALIZATIONS
@@ -169,7 +172,7 @@ if page == "Dashboard":
 # PAGE 2: CHAT WITH AI ASSISTANT
 # ============================================================================
 elif page == "Chat with AI":
-    st.header("💬 Chat with InsightForge AI Assistant")
+    st.header("💬 Chat with Corp Metrics Insights AI Assistant")
 
     st.markdown("""
     Ask me questions about your business data! I can:
@@ -235,7 +238,7 @@ elif page == "Chat with AI":
                     del st.session_state.example_query
 
                 # Show loading spinner
-                with st.spinner("🤔 InsightForge is analyzing..."):
+                with st.spinner("🤔 Corp Metrics Insights is analyzing..."):
                     try:
                         # Call the agent
                         response = test_agent(query=user_input, thread_id=st.session_state.thread_id)
@@ -258,14 +261,200 @@ elif page == "Chat with AI":
             st.rerun()
 
 # ============================================================================
-# PAGE 3: ABOUT
+# PAGE 3: MODEL EVALUATION
+# ============================================================================
+elif page == "Model Evaluation":
+    st.header("🔍 Model Evaluation Report")
+
+    st.markdown("""
+    This section evaluates the Corp Metrics Insights AI agent's performance across multiple dimensions:
+    - **Relevance**: Does it answer the question?
+    - **Accuracy**: Is the information correct?
+    - **Completeness**: Does it cover all aspects?
+    - **Tool Usage**: Did it use the right tool(s)?
+    """)
+
+    col1, col2 = st.columns([2, 1])
+
+    with col2:
+        if st.button("🚀 Run Evaluation", use_container_width=True):
+            st.session_state.running_eval = True
+
+    if st.session_state.get("running_eval", False):
+        st.write("### ⏳ Running Evaluation in Progress...")
+
+        # Create placeholder for streaming results
+        progress_placeholder = st.empty()
+        results_placeholder = st.empty()
+
+        try:
+            results = []
+            total_tests = 10
+
+            for i, test_case in enumerate(TEST_QUERIES, 1):
+                # Update progress
+                progress_text = f"**Test {i}/{total_tests}**: {test_case['description']}"
+                progress_placeholder.write(progress_text)
+
+                try:
+                    # Run the agent
+                    response = test_agent(query=test_case["query"], thread_id=f"eval_session_{test_case['id']}")
+                    response_text = response["messages"][-1].content
+
+                    # Score the response
+                    from evaluation import score_response
+                    scores = score_response(
+                        query=test_case["query"],
+                        response=response_text,
+                        expected_tool=test_case["expected_tool"],
+                        query_id=test_case["id"]
+                    )
+
+                    result = {
+                        "Test ID": test_case["id"],
+                        "Category": test_case["category"],
+                        "Expected Tool": test_case["expected_tool"],
+                        "Relevance": scores["Relevance"],
+                        "Accuracy": scores["Accuracy"],
+                        "Completeness": scores["Completeness"],
+                        "Tool Usage": scores["Tool Usage"],
+                        "Average Score": scores["Average"],
+                        "Status": "✅ Pass" if scores["Average"] >= 4.0 else "⚠️ Warning" if scores["Average"] >= 3.0 else "❌ Fail"
+                    }
+                    results.append(result)
+
+                    # Stream results table
+                    results_df = pd.DataFrame(results)
+                    with results_placeholder.container():
+                        st.dataframe(results_df[["Test ID", "Category", "Expected Tool", "Average Score", "Status"]], use_container_width=True)
+
+                except Exception as e:
+                    print(f"Test {i} error: {str(e)}")
+                    result = {
+                        "Test ID": test_case["id"],
+                        "Category": test_case["category"],
+                        "Expected Tool": test_case["expected_tool"],
+                        "Relevance": 1,
+                        "Accuracy": 1,
+                        "Completeness": 1,
+                        "Tool Usage": 1,
+                        "Average Score": 1.0,
+                        "Status": "❌ Error"
+                    }
+                    results.append(result)
+
+            # Final report
+            results_df = pd.DataFrame(results)
+            report = {
+                "results": results_df,
+                "summary": {
+                    "total_tests": len(results),
+                    "passed": len([r for r in results if r["Average Score"] >= 4.0]),
+                    "warnings": len([r for r in results if 3.0 <= r["Average Score"] < 4.0]),
+                    "failed": len([r for r in results if r["Average Score"] < 3.0]),
+                    "pass_rate": round((len([r for r in results if r["Average Score"] >= 4.0]) / len(results)) * 100, 1),
+                    "overall_score": round(results_df["Average Score"].mean(), 2)
+                },
+                "metrics_by_tool": results_df.groupby("Expected Tool")["Average Score"].mean().to_dict(),
+                "metrics_by_category": results_df.groupby("Category")["Average Score"].mean().to_dict(),
+                "metrics_by_dimension": {
+                    "Relevance": round(results_df["Relevance"].mean(), 2),
+                    "Accuracy": round(results_df["Accuracy"].mean(), 2),
+                    "Completeness": round(results_df["Completeness"].mean(), 2),
+                    "Tool Usage": round(results_df["Tool Usage"].mean(), 2)
+                }
+            }
+
+            st.session_state.eval_report = report
+            st.session_state.running_eval = False
+            progress_placeholder.success("✅ Evaluation Complete!")
+
+        except Exception as e:
+            st.error(f"Evaluation failed: {str(e)}")
+            st.session_state.running_eval = False
+
+    # Display results if available
+    if "eval_report" in st.session_state:
+        report = st.session_state.eval_report
+        summary = report["summary"]
+
+        # Display summary metrics
+        st.subheader("Summary")
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        with col1:
+            st.metric("Pass Rate", f"{summary['pass_rate']}%")
+        with col2:
+            st.metric("Overall Score", f"{summary['overall_score']}/5.0")
+        with col3:
+            st.metric("Passed", summary['passed'])
+        with col4:
+            st.metric("Warnings", summary['warnings'])
+        with col5:
+            st.metric("Failed", summary['failed'])
+
+        st.divider()
+
+        # Display metrics by dimension
+        st.subheader("Performance by Dimension")
+        dim_cols = st.columns(4)
+        dims = ["Relevance", "Accuracy", "Completeness", "Tool Usage"]
+
+        for i, dim in enumerate(dims):
+            with dim_cols[i]:
+                score = report['metrics_by_dimension'][dim]
+                st.metric(dim, f"{score}/5.0")
+
+        st.divider()
+
+        # Display metrics by tool
+        st.subheader("Performance by Tool Type")
+        tool_data = pd.DataFrame({
+            "Tool Type": list(report['metrics_by_tool'].keys()),
+            "Average Score": list(report['metrics_by_tool'].values())
+        })
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        colors = ["#2ca02c" if x >= 4.0 else "#ff7f0e" if x >= 3.0 else "#d62728"
+                 for x in tool_data["Average Score"]]
+        bars = ax.barh(tool_data["Tool Type"], tool_data["Average Score"], color=colors)
+        ax.set_xlim(0, 5)
+        ax.set_xlabel("Average Score", fontsize=10)
+        ax.grid(True, alpha=0.3, axis="x")
+
+        for bar in bars:
+            width = bar.get_width()
+            ax.text(width, bar.get_y() + bar.get_height()/2.,
+                   f'{width:.2f}',
+                   ha='left', va='center', fontsize=10, fontweight='bold')
+
+        st.pyplot(fig, use_container_width=True)
+
+        st.divider()
+
+        # Display detailed results table
+        st.subheader("Detailed Test Results")
+        results_display = report["results"][["Test ID", "Category", "Expected Tool",
+                                            "Relevance", "Accuracy", "Completeness",
+                                            "Tool Usage", "Average Score", "Status"]]
+        st.dataframe(results_display, use_container_width=True)
+
+        st.divider()
+
+        # Display formatted report
+        st.subheader("Text Report")
+        report_text = format_evaluation_report(report)
+        st.text(report_text)
+
+# ============================================================================
+# PAGE 4: ABOUT
 # ============================================================================
 elif page == "About":
-    st.header("About InsightForge")
+    st.header("About Corp Metrics Insights")
 
     st.markdown("""
     ### 🎯 Mission
-    InsightForge is an AI-powered Business Intelligence Assistant designed to help organizations
+    Corp Metrics Insights is an AI-powered Business Intelligence Assistant designed to help organizations
     transform their data into actionable insights.
 
     ### 🛠️ Technology Stack
@@ -303,6 +492,6 @@ elif page == "About":
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: gray; font-size: 12px;'>
-    InsightForge © 2026 | AI-Powered Business Intelligence
+    Corp Metrics Insights © 2026 | AI-Powered Business Intelligence
 </div>
 """, unsafe_allow_html=True)

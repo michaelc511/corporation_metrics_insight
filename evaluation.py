@@ -190,10 +190,10 @@ def run_evaluation() -> Dict:
     print("\n" + "=" * 80)
     print("STARTING MODEL EVALUATION")
     print("=" * 80)
+    print(f"Running {len(TEST_QUERIES)} tests...\n")
 
     for i, test_case in enumerate(TEST_QUERIES, 1):
-        print(f"\n[{i}/10] Running test: {test_case['description']}")
-        print(f"Query: {test_case['query'][:60]}...")
+        print(f"[{i}/{len(TEST_QUERIES)}] {test_case['description']}...", end=" ", flush=True)
 
         try:
             # Run the agent
@@ -221,10 +221,10 @@ def run_evaluation() -> Dict:
             }
 
             results.append(result)
-            print(f"Result: {result['Status']} (Avg: {scores['Average']}/5)")
+            print(f"{result['Status']} ({scores['Average']}/5)")
 
         except Exception as e:
-            print(f"Error: {str(e)}")
+            print(f"❌ Error: {str(e)}")
             result = {
                 "Test ID": test_case["id"],
                 "Category": test_case["category"],
