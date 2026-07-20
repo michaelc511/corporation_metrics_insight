@@ -138,7 +138,70 @@ else:
     print(f"Index saved. Processed {len(docs)} chunks.")
 
 # Initialize retriever
-retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+# retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+
+# ============================================================================
+# CUSTOM RETRIEVER: Extract Relevant Statistics
+# ============================================================================
+
+class CustomStatisticsRetriever:
+    """
+    Custom retriever that extracts relevant statistics and insights from documents.
+
+    This retriever:
+    1. Retrieves documents from FAISS vectorstore
+    2. Extracts statistics, strategies, and key metrics
+    3. Structures results for better consumption
+    """
+
+    def __init__(self, vectorstore, k: int = 5):
+        self.vectorstore = vectorstore
+        self.k = k
+
+    def invoke(self, query: str):
+        """Main method to retrieve and extract statistics"""
+        try:
+            # Get similar documents from FAISS
+            docs = self.vectorstore.similarity_search(query, k=self.k)
+
+            # Extract statistics from documents
+            extracted_stats = self._extract_statistics(docs)
+
+            return extracted_stats
+        except Exception as e:
+            print(f"Error in CustomStatisticsRetriever: {str(e)}")
+            return []
+
+    def _extract_statistics(self, docs):
+        """Extract relevant statistics and insights from documents"""
+        results = []
+
+        for doc in docs:
+            content = doc.page_content
+            metadata = doc.metadata
+
+            # Extract key insights
+            stat_item = {
+                "content": content[:500],  # First 500 chars
+                "source": metadata.get("source", "Unknown"),
+                "page": metadata.get("page", 0),
+                "relevance_score": "High",
+                "key_metrics": self._extract_key_phrases(content)
+            }
+            results.append(stat_item)
+
+        return results
+
+    def _extract_key_phrases(self, text: str) -> list:
+        """Extract key phrases and metrics from text"""
+        keywords = ["strategy", "improve", "performance", "customer", "sales",
+                   "satisfaction", "analysis", "metric", "data", "insight"]
+
+        found_keywords = [kw for kw in keywords if kw.lower() in text.lower()]
+        return found_keywords[:3]  # Return top 3
+
+# Initialize custom retriever
+retriever = CustomStatisticsRetriever(vectorstore, k=5)
 
 # # ============================================================================
 # # SECTION 1.4.1: Chain Promps
@@ -161,7 +224,7 @@ tools = [pandas_data_analyst, document_retriever]
 # # ============================================================================
 
 system_instruction = f"""
-You are InsightForge, a professional BI Assistant acting as a Traffic Controller.
+You are Corp Metrics Insights, a professional BI Assistant acting as a Traffic Controller.
 
 TRAFFIC CONTROLLER RULES:
 - If the user asks for numbers, sales metrics, or statistics, use the 'pandas_data_analyst' tool.
